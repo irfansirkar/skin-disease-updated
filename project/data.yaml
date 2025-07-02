@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 12
+names: ['Acne', 'Chickenpox', 'Eczema', 'Monkeypox', 'Pimple', 'Psoriasis', 'Ringworm', 'basal cell carcinoma', 'melanoma', 'tinea-versicolor', 'vitiligo', 'warts']
+
+roboflow:
+  workspace: bugsai
+  project: skin-diseases-gynnb
+  version: 1
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/bugsai/skin-diseases-gynnb/dataset/1

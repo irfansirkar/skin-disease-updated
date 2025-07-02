@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nearby Dermatologist Finder</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* Light gray background */
+        }
+        .container {
+            max-width: 900px;
+        }
+        .card {
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+        .btn {
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+        }
+        .btn-primary {
+            background-color: #4f46e5; /* Indigo 600 */
+            color: #ffffff;
+        }
+        .btn-primary:hover {
+            background-color: #4338ca; /* Indigo 700 */
+            transform: translateY(-1px);
+        }
+        .btn-secondary {
+            background-color: #e5e7eb; /* Gray 200 */
+            color: #374151; /* Gray 700 */
+        }
+        .btn-secondary:hover {
+            background-color: #d1d5db; /* Gray 300 */
+            transform: translateY(-1px);
+        }
+        .input-field {
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #d1d5db; /* Gray 300 */
+            width: 100%;
+        }
+        .loading-spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-left-color: #4f46e5;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="p-4">
+    <div class="container mx-auto p-6 bg-white rounded-xl shadow-lg my-8">
+        <h1 class="text-3xl font-bold text-gray-800 mb-6 text-center">📍 Nearby Dermatologist Finder</h1>
+        <p class="text-gray-600 mb-6 text-center">
+            Find dermatologists near your current location using the TomTom API.
+            Please ensure you have a valid TomTom API Key.
+        </p>
+
+        <div class="mb-6">
+            <label for="tomtomApiKey" class="block text-gray-700 text-sm font-medium mb-2">TomTom API Key:</label>
+            <input type="text" id="tomtomApiKey" placeholder="Enter your TomTom API Key"
+                   class="input-field focus:ring-indigo-500 focus:border-indigo-500">
+            <p class="text-xs text-gray-500 mt-1">Get your key from <a href="https://developer.tomtom.com/" target="_blank" class="text-indigo-600 hover:underline">TomTom Developer</a>.</p>
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-4 mb-8">
+            <button id="getLocationBtn" class="btn btn-primary flex-1">
+                Get My Current Location
+            </button>
+            <button id="findDermatologistsBtn" class="btn btn-secondary flex-1" disabled>
+                Find Nearby Dermatologists
+            </button>
+        </div>
+
+        <div id="loadingIndicator" class="hidden flex items-center justify-center mb-6">
+            <div class="loading-spinner"></div>
+            <span class="ml-3 text-gray-600">Loading...</span>
+        </div>
+
+        <div id="messageBox" class="hidden p-4 rounded-lg text-sm mb-6" role="alert"></div>
+
+        <div id="coordinatesDisplay" class="card p-4 mb-8 hidden">
+            <h2 class="text-xl font-semibold text-gray-800 mb-3">Your Coordinates:</h2>
+            <p class="text-gray-700">Latitude: <span id="latitude">N/A</span></p>
+            <p class="text-gray-700">Longitude: <span id="longitude">N/A</span></p>
+        </div>
+
+        <div id="dermatologistResults" class="hidden">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Nearby Dermatologists (Ranked by Distance):</h2>
+            <div id="resultsList" class="space-y-4">
+                <!-- Dermatologist results will be injected here -->
+            </div>
+            <p class="text-sm text-gray-500 mt-6 text-center">
+                For detailed reviews and experience, please visit the Practo search page:
+                <a href="https://www.practo.com/search/doctors?q=%5B%7B%22word%22%3A%22dermatologist%22%2C%22autocompleted%22%3Atrue%2C%22category%22%3A%22subspeciality%22%7D%5D&city=hyderabad&results_type=doctor&location_type=locality&location_value=banjara%20hills&filters%5Bdoctor_review_count%5D=10%2C9999999&filters%5Byears_of_experience%5D=5%2C9999999" target="_blank" class="text-indigo-600 hover:underline">Practo Dermatologist Search (Hyderabad)</a>
+            </p>
+        </div>
+    </div>
+
+    <script>
+        const tomtomApiKeyInput = document.getElementById('tomtomApiKey');
+        const getLocationBtn = document.getElementById('getLocationBtn');
+        const findDermatologistsBtn = document.getElementById('findDermatologistsBtn');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const messageBox = document.getElementById('messageBox');
+        const coordinatesDisplay = document.getElementById('coordinatesDisplay');
+        const latitudeSpan = document.getElementById('latitude');
+        const longitudeSpan = document.getElementById('longitude');
+        const dermatologistResults = document.getElementById('dermatologistResults');
+        const resultsList = document.getElementById('resultsList');
+
+        let userCoordinates = null; // To store user's lat/lon
+
+        // Function to display messages
+        function showMessage(message, type = 'info') {
+            messageBox.textContent = message;
+            messageBox.className = `p-4 rounded-lg text-sm mb-6 ${type === 'error' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`;
+            messageBox.classList.remove('hidden');
+        }
+
+        function hideMessage() {
+            messageBox.classList.add('hidden');
+        }
+
+        // Function to show/hide loading indicator
+        function showLoading() {
+            loadingIndicator.classList.remove('hidden');
+            hideMessage();
+        }
+
+        function hideLoading() {
+            loadingIndicator.classList.add('hidden');
+        }
+
+        // --- Geolocation Function ---
+        getLocationBtn.addEventListener('click', () => {
+            const apiKey = tomtomApiKeyInput.value.trim();
+            if (!apiKey) {
+                showMessage('Please enter your TomTom API Key.', 'error');
+                return;
+            }
+
+            showLoading();
+            hideMessage();
+            coordinatesDisplay.classList.add('hidden');
+            dermatologistResults.classList.add('hidden');
+            findDermatologistsBtn.disabled = true; // Disable until location is found
+
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        hideLoading();
+                        userCoordinates = {
+                            latitude: position.coords.latitude,
+                            longitude: position.coords.longitude
+                        };
+                        latitudeSpan.textContent = userCoordinates.latitude.toFixed(6);
+                        longitudeSpan.textContent = userCoordinates.longitude.toFixed(6);
+                        coordinatesDisplay.classList.remove('hidden');
+                        findDermatologistsBtn.disabled = false; // Enable find dermatologists button
+                        showMessage('Location obtained successfully!', 'info');
+                    },
+                    (error) => {
+                        hideLoading();
+                        let errorMessage = 'Error getting location: ';
+                        switch (error.code) {
+                            case error.PERMISSION_DENIED:
+                                errorMessage += "User denied the request for Geolocation. Please allow location access.";
+                                break;
+                            case error.POSITION_UNAVAILABLE:
+                                errorMessage += "Location information is unavailable.";
+                                break;
+                            case error.TIMEOUT:
+                                errorMessage += "The request to get user location timed out.";
+                                break;
+                            case error.UNKNOWN_ERROR:
+                                errorMessage += "An unknown error occurred.";
+                                break;
+                        }
+                        showMessage(errorMessage, 'error');
+                    },
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                );
+            } else {
+                hideLoading();
+                showMessage('Geolocation is not supported by your browser.', 'error');
+            }
+        });
+
+        // --- TomTom POI Search Function ---
+        findDermatologistsBtn.addEventListener('click', async () => {
+            const apiKey = tomtomApiKeyInput.value.trim();
+            if (!apiKey) {
+                showMessage('Please enter your TomTom API Key.', 'error');
+                return;
+            }
+            if (!userCoordinates) {
+                showMessage('Please get your current location first.', 'error');
+                return;
+            }
+
+            showLoading();
+            hideMessage();
+            dermatologistResults.classList.add('hidden');
+            resultsList.innerHTML = ''; // Clear previous results
+
+            const query = 'dermatologist';
+            const lat = userCoordinates.latitude;
+            const lon = userCoordinates.longitude;
+            const radius = 50000; // Search radius in meters (e.g., 50km)
+            const limit = 20; // Max number of results
+
+            // TomTom Search API URL for POI search
+            const tomtomSearchUrl = `https://api.tomtom.com/search/2/poiSearch/${query}.json?key=${apiKey}&lat=${lat}&lon=${lon}&radius=${radius}&limit=${limit}&categorySet=7372`; // 7372 is a common category ID for Medical/Health services. You might need to refine this.
+
+            try {
+                const response = await fetch(tomtomSearchUrl);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+                }
+                const data = await response.json();
+
+                hideLoading();
+                dermatologistResults.classList.remove('hidden');
+
+                if (data.results && data.results.length > 0) {
+                    // Sort results by distance (TomTom usually returns them sorted, but explicit sort is good)
+                    data.results.sort((a, b) => a.dist - b.dist);
+
+                    data.results.forEach(poi => {
+                        const distanceKm = (poi.dist / 1000).toFixed(2);
+                        const address = poi.address ? `${poi.address.streetNumber ? poi.address.streetNumber + ' ' : ''}${poi.address.streetName || ''}, ${poi.address.municipality || ''}, ${poi.address.countrySubdivision || ''}, ${poi.address.postalCode || ''}, ${poi.address.country || ''}` : 'Address not available';
+                        const phone = poi.poi.phone || 'N/A';
+                        const website = poi.poi.url || 'N/A';
+
+                        const resultItem = document.createElement('div');
+                        resultItem.className = 'card p-4';
+                        resultItem.innerHTML = `
+                            <h3 class="text-lg font-semibold text-indigo-700">${poi.poi.name || 'Dermatologist'}</h3>
+                            <p class="text-gray-600">Distance: ${distanceKm} km</p>
+                            <p class="text-gray-600">Address: ${address}</p>
+                            <p class="text-gray-600">Phone: ${phone}</p>
+                            <p class="text-gray-600">Website: ${website !== 'N/A' ? `<a href="${website}" target="_blank" class="text-indigo-500 hover:underline">${website}</a>` : 'N/A'}</p>
+                        `;
+                        resultsList.appendChild(resultItem);
+                    });
+                    showMessage(`Found ${data.results.length} dermatologists nearby!`, 'info');
+                } else {
+                    showMessage('No dermatologists found within the specified radius.', 'info');
+                }
+
+            } catch (error) {
+                hideLoading();
+                console.error("Error fetching dermatologists:", error);
+                showMessage(`Failed to find dermatologists: ${error.message}. Please check your API key and try again.`, 'error');
+            }
+        });
+    </script>
+</body>
+</html>
