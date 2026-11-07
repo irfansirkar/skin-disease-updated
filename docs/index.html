@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Skentics · Live demo</title>
+<meta name="description" content="Skentics demo: YOLO11 skin-condition detection and a real-time vision pipeline, shown with sample data.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23FF5A36'/%3E%3Ctext x='16' y='22' font-family='Arial' font-weight='900' font-size='14' fill='white' text-anchor='middle'%3ESK%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@800;900&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+:root{--bg:#FFF6F3;--card:#fff;--ink:#1A1412;--muted:#6B5F5A;--line:#EADBD5;--acc:#FF5A36;--acc-soft:#FFE3DA;--ok:#1F9D55;--warn:#C77700;--bad:#D23C3C;
+  --f-head:"Montserrat",system-ui,sans-serif;--f-body:"Hanken Grotesk","Segoe UI",system-ui,sans-serif;--f-mono:"IBM Plex Mono",ui-monospace,Consolas,monospace}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 var(--f-body)}
+a{color:inherit}
+.demo-bar{background:var(--ink);color:#fff;font:600 12px var(--f-mono);letter-spacing:.05em;padding:8px max(16px,4vw);display:flex;gap:12px;justify-content:space-between;flex-wrap:wrap}
+.demo-bar a{color:#fff;opacity:.8}
+.wrap{max-width:1100px;margin:0 auto;padding:28px max(16px,4vw) 60px;display:grid;gap:24px}
+header h1{font:900 clamp(34px,6vw,60px)/1 var(--f-head);margin:0;letter-spacing:-.02em}
+header h1 span{color:var(--acc)}
+header p{max-width:62ch;color:var(--muted);margin:10px 0 0}
+.tabs{display:flex;gap:8px;flex-wrap:wrap}
+.tab{border:2px solid var(--ink);background:var(--card);font:700 14px var(--f-body);padding:9px 18px;border-radius:99px;cursor:pointer}
+.tab[aria-selected="true"]{background:var(--ink);color:#fff}
+.grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:20px}
+@media (max-width:820px){.grid{grid-template-columns:1fr}}
+.card{background:var(--card);border:2px solid var(--ink);border-radius:20px;padding:18px;box-shadow:5px 5px 0 var(--acc);min-width:0}
+.lbl{font:600 11px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.stage{position:relative;border-radius:14px;overflow:hidden;background:#000;margin-top:10px}
+.stage canvas{display:block;width:100%;height:auto}
+.thumbs{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-top:12px}
+.thumb{padding:0;border:2px solid transparent;border-radius:10px;overflow:hidden;cursor:pointer;background:none}
+.thumb canvas{display:block;width:100%;height:auto}
+.thumb[aria-pressed="true"]{border-color:var(--acc)}
+.pred{display:grid;gap:12px;margin-top:10px}
+.pred .row{display:grid;gap:4px}
+.pred .top{display:flex;justify-content:space-between;font-weight:600;font-variant-numeric:tabular-nums}
+.meter{height:10px;border-radius:99px;background:var(--acc-soft);overflow:hidden}
+.meter b{display:block;height:100%;background:var(--acc);border-radius:99px;width:0;transition:width .7s cubic-bezier(.3,1,.4,1)}
+.verdict{font:900 28px var(--f-head);margin:4px 0 0}
+.note{background:var(--acc-soft);border-radius:12px;padding:12px 14px;font-size:15px}
+.warn{font-size:13px;color:var(--muted);border-left:3px solid var(--warn);padding-left:10px}
+.spin{display:none;font:600 13px var(--f-mono);color:var(--acc)}
+.busy .spin{display:block}.busy .pred{opacity:.25}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
+.stat{background:var(--bg);border-radius:12px;padding:10px}
+.stat b{display:block;font:900 22px var(--f-head);font-variant-numeric:tabular-nums}
+.log{font:13px/1.6 var(--f-mono);background:#14100F;color:#F5E9E4;border-radius:12px;padding:12px;height:220px;overflow:auto;margin-top:10px}
+.log .t{color:#FF9A80}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font:600 12px var(--f-mono);border:1.5px solid var(--line);border-radius:99px;padding:3px 10px;background:var(--card)}
+.how{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+.how div{background:var(--card);border:1.5px solid var(--line);border-radius:16px;padding:14px}
+.how b{font:800 15px var(--f-head)}
+footer{color:var(--muted);font-size:14px}
+[hidden]{display:none!important}
+@media (prefers-reduced-motion:reduce){.meter b{transition:none}}
+</style>
+</head>
+<body>
+<div class="demo-bar"><span>DEMO · SAMPLE DATA · NOT MEDICAL ADVICE</span><span><a href="https://github.com/irfansirkar/skin-disease-updated">Code ↗</a> · <a href="https://irfansirkar.github.io/PERSONAL-PORFOLIO-WEBSITE/">Irfan's portfolio ↗</a></span></div>
+<main class="wrap">
+  <header>
+    <h1>Sken<span>tics</span></h1>
+    <p>An AI vision project by Mohammad Irfan Sirkar. It started as a YOLO11 skin-condition detector trained on 12 classes, then grew into a real-time vision pipeline that adds a vision-language model, OCR and speech on live camera streams.</p>
+  </header>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true" data-tab="skin">1 · Skin scan (YOLO11)</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="live">2 · Live vision pipeline</button>
+  </div>
+
+  <section id="skin" class="grid">
+    <div class="card">
+      <div class="lbl">Pick a sample image</div>
+      <div class="stage"><canvas id="main" width="640" height="440" aria-label="Sample skin image with detection box"></canvas></div>
+      <div class="thumbs" id="thumbs"></div>
+    </div>
+    <div class="card" id="result">
+      <div class="lbl">Model output</div>
+      <div class="spin">● running YOLO11 inference…</div>
+      <div class="pred">
+        <div><div class="verdict" id="verdict">–</div><div class="lbl" id="conf"></div></div>
+        <div id="bars" class="pred"></div>
+        <div class="note" id="note"></div>
+        <div class="warn">Images are drawn illustrations and the scores are sample outputs. Always see a dermatologist about a skin concern.</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="live" class="grid" hidden>
+    <div class="card">
+      <div class="lbl">Simulated RTSP camera · street scene</div>
+      <div class="stage"><canvas id="cam" width="640" height="400" aria-label="Simulated camera feed with detections"></canvas></div>
+      <div class="stats">
+        <div class="stat"><span class="lbl">FPS</span><b id="fps">60</b></div>
+        <div class="stat"><span class="lbl">Objects</span><b id="objs">0</b></div>
+        <div class="stat"><span class="lbl">GPU</span><b>CUDA</b></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="lbl">Pipeline log</div>
+      <div class="log" id="log" aria-live="polite"></div>
+      <div class="chips" style="margin-top:12px"><span class="chip">YOLO11 · detect</span><span class="chip">PaliGemma 3B · describe</span><span class="chip">Tesseract · read text</span><span class="chip">TTS · speak alerts</span></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="lbl" style="margin-bottom:10px">How the real system works</div>
+    <div class="how">
+      <div><b>1. Train</b><br>YOLO11 trained on a 12-class Roboflow skin dataset (acne to melanoma) with PyTorch on CUDA.</div>
+      <div><b>2. Detect</b><br>The model draws a box around the affected area and scores each class.</div>
+      <div><b>3. Explain</b><br>The Streamlit app shows a plain-language explanation and can generate a detailed one.</div>
+      <div><b>4. Go live</b><br>The same detector runs on RTSP streams at 60+ FPS, with PaliGemma captions, OCR and speech.</div>
+    </div>
+  </section>
+  <footer>Built by Mohammad Irfan Sirkar · Hyderabad · <a href="https://github.com/irfansirkar">github.com/irfansirkar</a></footer>
+</main>
+<script>
+/* ---------- sample data (12 classes from data.yaml) ---------- */
+const INFO = {
+  'Eczema': 'Dry, itchy, inflamed patches. Usually managed with moisturisers and avoiding triggers.',
+  'Psoriasis': 'Thick, scaly plaques caused by fast skin-cell turnover. Often on elbows, knees and scalp.',
+  'Ringworm': 'A fungal infection that forms a ring-shaped, red, scaly rash. Treated with antifungal cream.',
+  'Acne': 'Blocked pores causing spots and inflammation, common on the face, chest and back.',
+  'vitiligo': 'Loss of pigment that leaves pale, well-defined patches. Not contagious.',
+  'melanoma': 'A serious skin cancer. Irregular, dark, changing moles need an urgent doctor visit.',
+  'Chickenpox': 'A viral infection with many small, itchy blisters spread over the body.'
+};
+const S = [
+  {k:'Eczema', top:[['Eczema',.86],['Psoriasis',.09],['Ringworm',.05]], box:[.30,.28,.42,.44], draw:'patch', base:'#E8B89A', spot:'#C7684F'},
+  {k:'Psoriasis', top:[['Psoriasis',.91],['Eczema',.06],['tinea-versicolor',.03]], box:[.26,.22,.48,.52], draw:'plaque', base:'#D9A07E', spot:'#B5523F'},
+  {k:'Ringworm', top:[['Ringworm',.88],['Eczema',.08],['Psoriasis',.04]], box:[.29,.25,.42,.50], draw:'ring', base:'#EAC0A2', spot:'#B84C3A'},
+  {k:'Acne', top:[['Acne',.79],['Pimple',.17],['Chickenpox',.04]], box:[.18,.20,.62,.58], draw:'dots', base:'#F0C6AA', spot:'#D0604A'},
+  {k:'vitiligo', top:[['vitiligo',.94],['tinea-versicolor',.05],['Eczema',.01]], box:[.24,.18,.50,.58], draw:'pale', base:'#9C6644', spot:'#F2DCCB'},
+  {k:'melanoma', top:[['melanoma',.72],['basal cell carcinoma',.18],['warts',.10]], box:[.38,.32,.24,.34], draw:'mole', base:'#E3B392', spot:'#3A2018'}
+];
+/* ---------- procedural skin drawings (seeded so they look the same each time) ---------- */
+function rng(seed){return()=>{seed=(seed*16807)%2147483647;return(seed-1)/2147483646}}
+function drawSkin(ctx,s,i,W,H){
+  const r=rng(i*97+13);ctx.fillStyle=s.base;ctx.fillRect(0,0,W,H);
+  for(let n=0;n<900;n++){ctx.fillStyle=`rgba(0,0,0,${r()*.04})`;ctx.fillRect(r()*W,r()*H,2,2)}
+  const cx=(s.box[0]+s.box[2]/2)*W, cy=(s.box[1]+s.box[3]/2)*H, rw=s.box[2]*W/2, rh=s.box[3]*H/2;
+  ctx.save();
+  if(s.draw==='patch'||s.draw==='plaque'){for(let n=0;n<(s.draw==='plaque'?14:26);n++){const a=r()*6.28,d=r()*.75;ctx.fillStyle=s.spot+(s.draw==='plaque'?'cc':'88');ctx.beginPath();ctx.ellipse(cx+Math.cos(a)*rw*d,cy+Math.sin(a)*rh*d,rw*(.2+r()*.3),rh*(.2+r()*.3),r()*3,0,6.28);ctx.fill()}
+    if(s.draw==='plaque'){ctx.strokeStyle='rgba(255,255,255,.55)';ctx.lineWidth=1.5;for(let n=0;n<40;n++){const x=cx+(r()-.5)*rw*1.4,y=cy+(r()-.5)*rh*1.4;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+r()*10,y+r()*4);ctx.stroke()}}}
+  if(s.draw==='ring'){ctx.strokeStyle=s.spot;ctx.lineWidth=Math.min(W,H)*.035;ctx.beginPath();ctx.ellipse(cx,cy,rw*.8,rh*.75,.3,0,6.28);ctx.stroke();ctx.fillStyle=s.spot+'33';ctx.fill()}
+  if(s.draw==='dots'){for(let n=0;n<34;n++){const x=cx+(r()-.5)*rw*2,y=cy+(r()-.5)*rh*2,rad=3+r()*W*.012;ctx.fillStyle=s.spot;ctx.beginPath();ctx.arc(x,y,rad,0,6.28);ctx.fill();ctx.fillStyle='rgba(255,240,220,.7)';ctx.beginPath();ctx.arc(x-rad*.3,y-rad*.3,rad*.35,0,6.28);ctx.fill()}}
+  if(s.draw==='pale'){for(let n=0;n<7;n++){ctx.fillStyle=s.spot;ctx.beginPath();ctx.ellipse(cx+(r()-.5)*rw,cy+(r()-.5)*rh,rw*(.3+r()*.4),rh*(.25+r()*.35),r()*3,0,6.28);ctx.fill()}}
+  if(s.draw==='mole'){ctx.fillStyle=s.spot;ctx.beginPath();for(let a=0;a<6.3;a+=.3){const k=.7+r()*.35;ctx.lineTo(cx+Math.cos(a)*rw*.8*k,cy+Math.sin(a)*rh*.8*k)}ctx.fill();ctx.fillStyle='#6B3A25';ctx.beginPath();ctx.ellipse(cx+rw*.2,cy-rh*.1,rw*.3,rh*.25,0,0,6.28);ctx.fill()}
+  ctx.restore();
+}
+/* ---------- skin scan tab ---------- */
+const main=document.getElementById('main'),mc=main.getContext('2d'),thumbs=document.getElementById('thumbs'),res=document.getElementById('result');
+S.forEach((s,i)=>{const b=document.createElement('button');b.className='thumb';b.setAttribute('aria-label','Sample '+(i+1));const c=document.createElement('canvas');c.width=160;c.height=110;drawSkin(c.getContext('2d'),s,i,160,110);b.appendChild(c);b.onclick=()=>pick(i);thumbs.appendChild(b)});
+let timer;
+function pick(i){
+  const s=S[i];[...thumbs.children].forEach((b,j)=>b.setAttribute('aria-pressed',j===i));
+  drawSkin(mc,s,i,640,440);res.classList.add('busy');clearTimeout(timer);
+  timer=setTimeout(()=>{
+    const [x,y,w,h]=s.box,W=640,H=440;mc.strokeStyle='#FF5A36';mc.lineWidth=4;mc.strokeRect(x*W,y*H,w*W,h*H);
+    const t=`${s.top[0][0]} ${s.top[0][1].toFixed(2)}`;mc.font='600 18px "IBM Plex Mono",monospace';const tw=mc.measureText(t).width+16;
+    mc.fillStyle='#FF5A36';mc.fillRect(x*W-2,y*H-30,tw,28);mc.fillStyle='#fff';mc.fillText(t,x*W+6,y*H-10);
+    document.getElementById('verdict').textContent=s.top[0][0];
+    document.getElementById('conf').textContent=`confidence ${(s.top[0][1]*100).toFixed(0)}% · inference 14 ms`;
+    document.getElementById('bars').innerHTML=s.top.map(([n,v])=>`<div class="row"><div class="top"><span>${n}</span><span>${(v*100).toFixed(0)}%</span></div><div class="meter"><b data-w="${v*100}"></b></div></div>`).join('');
+    requestAnimationFrame(()=>document.querySelectorAll('#bars b').forEach(b=>b.style.width=b.dataset.w+'%'));
+    document.getElementById('note').innerHTML=(s.k==='melanoma'?'<b>High-risk class.</b> ':'')+(INFO[s.k]||'');
+    res.classList.remove('busy');
+  },650);
+}
+pick(0);
+/* ---------- live pipeline tab ---------- */
+const cam=document.getElementById('cam'),cc=cam.getContext('2d'),log=document.getElementById('log');
+const OBJ=[{c:'person',x:80,y:170,w:60,h:150,vx:.6,col:'#36E8FF'},{c:'person',x:420,y:180,w:55,h:140,vx:-.45,col:'#36E8FF'},{c:'car',x:-160,y:250,w:160,h:80,vx:2.2,col:'#FFD84D'},{c:'bicycle',x:640,y:250,w:90,h:70,vx:-1.4,col:'#7BFF8A'}];
+const LINES=[['YOLO11','person ×2, car ×1, bicycle ×1 · 16 ms'],['PaliGemma','"Two people crossing near a shop; a car approaches from the left."'],['Tesseract','sign text: "CITY PHARMACY · OPEN 24H"'],['TTS','"Caution: vehicle approaching crossing."'],['YOLO11','person ×2, bicycle ×1 · 15 ms'],['PaliGemma','"A cyclist passes the pharmacy entrance."']];
+let li=0,live=false,last=0,frames=0,fpsT=0;
+function addLog(){const [t,m]=LINES[li++%LINES.length];const d=new Date().toTimeString().slice(0,8);log.insertAdjacentHTML('beforeend',`<div>${d} <span class="t">[${t}]</span> ${m}</div>`);log.scrollTop=log.scrollHeight;if(log.children.length>40)log.firstChild.remove()}
+function scene(t){
+  cc.fillStyle='#2B3240';cc.fillRect(0,0,640,400);cc.fillStyle='#3B4456';cc.fillRect(0,230,640,170);
+  cc.fillStyle='#4A3A5C';cc.fillRect(380,40,220,190);cc.fillStyle='#1E7A4C';cc.fillRect(400,60,180,34);
+  cc.fillStyle='#fff';cc.font='700 15px "IBM Plex Mono",monospace';cc.fillText('CITY PHARMACY',420,83);
+  cc.fillStyle='#E6E6E6';for(let i=0;i<8;i++)cc.fillRect(40+i*72,330,40,10);
+  let n=0;
+  OBJ.forEach(o=>{o.x+=o.vx;if(o.x>700)o.x=-180;if(o.x<-200)o.x=700;
+    cc.fillStyle=o.c==='car'?'#C0392B':o.c==='bicycle'?'#8E9AAF':'#D9B38C';
+    if(o.c==='person'){cc.beginPath();cc.arc(o.x+o.w/2,o.y+18,14,0,6.28);cc.fill();cc.fillStyle='#4B6584';cc.fillRect(o.x+12,o.y+34,o.w-24,o.h-40)}
+    else if(o.c==='car'){cc.fillRect(o.x,o.y+20,o.w,o.h-34);cc.fillRect(o.x+30,o.y,o.w-70,30);cc.fillStyle='#111';cc.beginPath();cc.arc(o.x+32,o.y+o.h-12,13,0,6.28);cc.arc(o.x+o.w-32,o.y+o.h-12,13,0,6.28);cc.fill()}
+    else{cc.strokeStyle='#C9D1DC';cc.lineWidth=4;cc.beginPath();cc.arc(o.x+18,o.y+50,18,0,6.28);cc.moveTo(o.x+90,o.y+50);cc.arc(o.x+72,o.y+50,18,0,6.28);cc.stroke()}
+    if(o.x>-o.w&&o.x<640){n++;cc.strokeStyle=o.col;cc.lineWidth=2.5;cc.strokeRect(o.x,o.y,o.w,o.h);cc.fillStyle=o.col;cc.fillRect(o.x,o.y-20,o.c.length*9+46,20);cc.fillStyle='#111';cc.font='600 13px "IBM Plex Mono",monospace';cc.fillText(o.c+' '+(0.86+((o.x|0)%10)/100).toFixed(2),o.x+4,o.y-5)}
+  });
+  cc.strokeStyle='#FFD84D';cc.lineWidth=2;cc.strokeRect(398,58,184,38);cc.fillStyle='#FFD84D';cc.fillText('OCR',400,52);
+  cc.fillStyle='rgba(0,0,0,.55)';cc.fillRect(0,0,640,26);cc.fillStyle='#FF5A36';cc.beginPath();cc.arc(14,13,5,0,6.28);cc.fill();
+  cc.fillStyle='#fff';cc.fillText('REC  rtsp://cam-02/stream  '+new Date().toTimeString().slice(0,8),26,18);
+  document.getElementById('objs').textContent=n;
+}
+function loop(t){if(!live)return;frames++;if(t-fpsT>1000){document.getElementById('fps').textContent=Math.min(64,Math.round(frames*1000/(t-fpsT))+2);frames=0;fpsT=t}scene(t);if(t-last>1600){addLog();last=t}requestAnimationFrame(loop)}
+/* ---------- tabs ---------- */
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.setAttribute('aria-selected',x===b));
+  const t=b.dataset.tab;document.getElementById('skin').hidden=t!=='skin';document.getElementById('live').hidden=t!=='live';
+  live=t==='live';if(live){if(!log.children.length)addLog();requestAnimationFrame(loop)}
+});
+</script>
+</body>
+</html>
